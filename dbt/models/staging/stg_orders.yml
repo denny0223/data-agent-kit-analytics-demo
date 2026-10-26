@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: "Cleaned and staged orders data"
+    columns:
+      - name: order_id
+        description: "Primary key of the orders table"
+        tests:
+          - unique
+          - not_null
+      - name: order_date
+        description: "Date when order was placed"
+        tests:
+          - not_null
+      - name: order_type
+        description: "Order channel type (Online, Offline, B2B-Wholesale)"
+        tests:
+          - not_null
+
+  - name: stg_order_items
+    description: "Cleaned and staged order items data"
+    columns:
+      - name: order_item_id
+        description: "Primary key of order items"
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        description: "Foreign key referencing orders table"
+        tests:
+          - not_null

@@ -1,0 +1,24 @@
+version: 2
+
+sources:
+  - name: cymbal_pets
+    database: "{{ target.project }}"
+    schema: cymbal_pets
+    description: "Raw data from Cymbal Pets database in BigQuery"
+    tables:
+      - name: orders
+        description: "Raw orders transaction records"
+        columns:
+          - name: order_id
+            description: "Primary key for orders"
+            tests:
+              - unique
+              - not_null
+      - name: order_items
+        description: "Raw line item records for each order"
+        columns:
+          - name: order_item_id
+            description: "Primary key for order items"
+            tests:
+              - unique
+              - not_null

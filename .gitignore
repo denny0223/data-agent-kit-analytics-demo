@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+.user.yml
+profiles.yml
+/models
+/dbt_project.yml
+/session-*.md
+/session-*.jsonl
+.env
+.env.*
+*credentials*.json
+.agents/
+.codex/
+.aws/

@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: fct_order_analysis
+    description: "Expanded fact table for order analysis including customer type and aggregated pet attributes (pet types and dietary needs) to support product recommendations while preventing join fan-outs."
+    columns:
+      - name: order_id
+        description: "Primary key of the order fact table"
+        tests:
+          - unique
+          - not_null
+      - name: order_date
+        description: "Transaction date of the order"
+        tests:
+          - not_null
+      - name: order_month
+        description: "Formatted month string (YYYY-MM)"
+        tests:
+          - not_null
+      - name: order_type
+        description: "Order channel type (Online, Offline, B2B-Wholesale)"
+        tests:
+          - not_null
+      - name: order_amount
+        description: "Total order monetary amount"
+        tests:
+          - not_null
+      - name: customer_type
+        description: "Type of customer (Individual, Business) sourced from Cloud SQL"
+      - name: pet_type
+        description: "Types of pets owned by the customer, aggregated into a comma-separated list"
+      - name: dietary_needs
+        description: "Dietary needs of the customer's pets, aggregated into a comma-separated list"

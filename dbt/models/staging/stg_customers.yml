@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: "Cleaned and staged customer profiles from Cloud SQL"
+    columns:
+      - name: customer_id
+        description: "Primary key for customers"
+        tests:
+          - unique
+          - not_null
+      - name: customer_type
+        description: "Type of customer (Individual, Business)"
+        tests:
+          - not_null
+
+  - name: stg_pet_profiles
+    description: "Cleaned and staged pet profiles from Cloud SQL"
+    columns:
+      - name: pet_id
+        description: "Primary key for pets"
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Foreign key referencing customers"
+        tests:
+          - not_null
+      - name: pet_type
+        description: "Species/type of the pet (Dog, Cat, Bird, Fish, etc.)"
+      - name: dietary_needs
+        description: "Specific nutritional/dietary requirements of the pet"

@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cymbal Pets 營運分析互動式儀表板</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --background: #f8fafc;
+      --foreground: #0f172a;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --muted-foreground: #475569;
+      --primary: #2563eb;
+      --primary-foreground: #ffffff;
+    }
+    /* 基礎互動過渡與自訂樣式 */
+    .metric-card {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .metric-card:hover {
+      transform: translateY(-2px);
+    }
+    .chart-tooltip {
+      pointer-events: none;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+    /* 表格滾動條美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(150, 150, 150, 0.3);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-4 md:p-6 space-y-6">
+
+  <!-- 頂部標題與工具列 -->
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border)] pb-5">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-600 text-white font-bold text-sm shadow-sm">
+          CP
+        </span>
+        <h1 class="text-xl md:text-2xl font-bold tracking-tight">Cymbal Pets 營運數據分析儀表板</h1>
+        <span class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+          Lab 展示資料
+        </span>
+      </div>
+      <p class="text-xs md:text-sm text-[var(--muted-foreground)] mt-1.5 flex items-center gap-2">
+        <span>資料來源：BigQuery (<code class="bg-[var(--card)] px-1.5 py-0.5 rounded text-xs border border-[var(--border)]">cymbal_pets.orders</code>, <code class="bg-[var(--card)] px-1.5 py-0.5 rounded text-xs border border-[var(--border)]">order_items</code>)</span>
+        <span>•</span>
+        <span>分析區間：2024 年 8 月 ～ 2025 年 1 月</span>
+      </p>
+    </div>
+
+    <!-- 匯出與視圖工具 -->
+    <div class="flex items-center gap-3">
+      <button onclick="exportOfflineHTML()" class="inline-flex items-center gap-2 px-3.5 py-2 text-xs md:text-sm font-medium rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 shadow-sm transition-all active:scale-95">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        <span>下載 HTML</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 篩選控制項列 -->
+  <section class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- 月份選擇 -->
+      <div class="flex items-center gap-2">
+        <label for="monthFilter" class="text-xs font-semibold text-[var(--muted-foreground)]">月份選擇：</label>
+        <select id="monthFilter" onchange="onFilterChange()" class="text-xs md:text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-1.5 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="ALL">全部月份 (2024/08 - 2025/01)</option>
+          <option value="2024-08">2024 年 08 月</option>
+          <option value="2024-09">2024 年 09 月</option>
+          <option value="2024-10">2024 年 10 月</option>
+          <option value="2024-11">2024 年 11 月</option>
+          <option value="2024-12">2024 年 12 月</option>
+          <option value="2025-01">2025 年 01 月 (促銷異動期)</option>
+        </select>
+      </div>
+
+      <!-- 圖表主指標切換 -->
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-semibold text-[var(--muted-foreground)]">圖表主指標：</label>
+        <div class="inline-flex rounded-lg border border-[var(--border)] bg-[var(--background)] p-0.5">
+          <button id="btnMetricAov" onclick="setChartMetric('aov')" class="px-2.5 py-1 text-xs font-medium rounded-md bg-blue-600 text-white transition-all shadow-xs">
+            平均每筆金額 (AOV)
+          </button>
+          <button id="btnMetricRev" onclick="setChartMetric('revenue')" class="px-2.5 py-1 text-xs font-medium rounded-md text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-all">
+            總營收 (Revenue)
+          </button>
+          <button id="btnMetricOrd" onclick="setChartMetric('orders')" class="px-2.5 py-1 text-xs font-medium rounded-md text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-all">
+            訂單數 (Orders)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 狀態標籤 -->
+    <div class="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+      <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      <span>既有建置：5 個模型成功 / 23 項測試通過</span>
+    </div>
+  </section>
+
+  <!-- 關鍵 KPI 指標摘要卡 -->
+  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- 總營收 -->
+    <div class="metric-card bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 shadow-xs">
+      <div class="flex items-center justify-between text-xs text-[var(--muted-foreground)] mb-1">
+        <span>區間總營收 (Revenue)</span>
+        <span class="p-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">USD</span>
+      </div>
+      <div id="kpiRevenue" class="text-2xl font-bold tracking-tight text-[var(--foreground)]">$53,009,160.35</div>
+      <div id="kpiRevSub" class="text-xs text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1 font-medium">
+        <span>▲ 12 月營收 $12,140,942.48</span>
+      </div>
+    </div>
+
+    <!-- 總訂單數 -->
+    <div class="metric-card bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 shadow-xs">
+      <div class="flex items-center justify-between text-xs text-[var(--muted-foreground)] mb-1">
+        <span>區間總訂單數 (Orders)</span>
+        <span class="p-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400">筆</span>
+      </div>
+      <div id="kpiOrders" class="text-2xl font-bold tracking-tight text-[var(--foreground)]">489,329</div>
+      <div id="kpiOrdSub" class="text-xs text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1 font-medium">
+        <span>▲ 1 月創歷史新高 121,439 筆</span>
+      </div>
+    </div>
+
+    <!-- 平均每筆金額 AOV -->
+    <div class="metric-card bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 shadow-xs">
+      <div class="flex items-center justify-between text-xs text-[var(--muted-foreground)] mb-1">
+        <span>平均每筆訂單金額 (AOV)</span>
+        <span class="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">加權平均</span>
+      </div>
+      <div id="kpiAov" class="text-2xl font-bold tracking-tight text-[var(--foreground)]">$108.33</div>
+      <div id="kpiAovSub" class="text-xs text-rose-500 mt-2 flex items-center gap-1 font-medium">
+        <span>▼ 1 月降至 $102.74 (-6.7%)</span>
+      </div>
+    </div>
+
+    <!-- 零售與批發結構比 -->
+    <div class="metric-card bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 shadow-xs">
+      <div class="flex items-center justify-between text-xs text-[var(--muted-foreground)] mb-1">
+        <span>訂單結構特徵 (Mix Shift)</span>
+        <span class="p-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">歸因</span>
+      </div>
+      <div id="kpiMix" class="text-lg font-bold tracking-tight text-[var(--foreground)]">B2B 促銷稀釋</div>
+      <div id="kpiMixSub" class="text-xs text-[var(--muted-foreground)] mt-2">
+        零售客單價保持 $109.74 穩定
+      </div>
+    </div>
+  </section>
+
+  <!-- 視覺化趨勢與對比主圖表區 -->
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- 主趨勢折線/柱狀圖 (佔 2 欄) -->
+    <div class="lg:col-span-2 bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 shadow-sm space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 id="chartTitle" class="text-sm font-bold tracking-tight">每月平均每筆訂單金額 (AOV) 走勢圖</h2>
+          <p class="text-xs text-[var(--muted-foreground)] mt-0.5">點擊資料柱或圓點可鎖定檢視該月詳細數據</p>
+        </div>
+        <div class="flex items-center gap-4 text-xs">
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-blue-600 inline-block"></span>
+            <span id="legendLabel">AOV ($)</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-0.5 bg-amber-500 inline-block"></span>
+            <span>基準參考線 ($110)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG 圖表容器 -->
+      <div class="relative w-full h-[280px] select-none" id="chartWrapper">
+        <svg id="trendSvg" class="w-full h-full overflow-visible"></svg>
+        <!-- 浮動 Tooltip -->
+        <div id="chartTooltip" class="chart-tooltip absolute hidden px-3 py-2 rounded-lg bg-gray-900 text-white text-xs shadow-xl border border-gray-700 z-20"></div>
+      </div>
+
+      <!-- 底部洞察標註 -->
+      <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 text-xs text-[var(--muted-foreground)] flex items-start gap-2.5">
+        <svg class="w-4 h-4 text-blue-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+          <span class="font-semibold text-[var(--foreground)]">關鍵營運洞察：</span>
+          2024 年 8 月至 12 月 AOV 穩定維持在 $110 水準；2025 年 1 月因啟動「B2B Wholesale Push」促銷方案（75 折、代碼 BIGORDER25），湧入 2.5 萬筆平均單價僅 $75.72 的批發訂單，導致加權 AOV 下滑至 $102.74。
+        </div>
+      </div>
+    </div>
+
+    <!-- 通路/訂單類型細分佔比 (佔 1 欄) -->
+    <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between border-b border-[var(--border)] pb-3">
+          <h2 class="text-sm font-bold tracking-tight">訂單類型結構分析</h2>
+          <span id="channelFilterMonthBadge" class="text-xs px-2 py-0.5 rounded bg-[var(--background)] border border-[var(--border)] text-[var(--muted-foreground)]">全期間累計</span>
+        </div>
+
+        <div id="channelBreakdownContainer" class="space-y-4 mt-4">
+          <!-- 動態載入各通路佔比 -->
+        </div>
+      </div>
+
+      <!-- 額外業務摘要 -->
+      <div class="border-t border-[var(--border)] pt-4 text-xs space-y-2">
+        <div class="flex justify-between text-[var(--muted-foreground)]">
+          <span>獲利率最高的通路：</span>
+          <span class="font-medium text-[var(--foreground)]">Offline / Online (38.1%)</span>
+        </div>
+        <div class="flex justify-between text-[var(--muted-foreground)]">
+          <span>B2B 批發毛利率：</span>
+          <span class="font-medium text-rose-500">18.45% (促銷壓縮)</span>
+        </div>
+        <div class="flex justify-between text-[var(--muted-foreground)]">
+          <span>TimesFM 90 天 AOV 預測：</span>
+          <span class="font-medium text-emerald-600 dark:text-emerald-400">$110.28 (常態回升)</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 原始數據表與 SQL 查詢檢視區 -->
+  <section class="bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
+    <!-- 標籤頁切換 -->
+    <div class="flex items-center justify-between border-b border-[var(--border)] px-5 pt-3 bg-[var(--background)]/50">
+      <div class="flex gap-4">
+        <button id="tabBtnTable" onclick="switchTab('table')" class="text-xs md:text-sm font-semibold pb-3 border-b-2 border-blue-600 text-blue-600 transition-colors">
+          📊 原始查詢數據表格 (Monthly Metrics)
+        </button>
+        <button id="tabBtnSql" onclick="switchTab('sql')" class="text-xs md:text-sm font-medium pb-3 border-b-2 border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
+          💻 產出此數據之 BigQuery SQL 語法
+        </button>
+      </div>
+      <span class="text-xs text-[var(--muted-foreground)] hidden sm:inline">共 6 個月份、13 筆維度紀錄</span>
+    </div>
+
+    <!-- 內容頁 1: 數據表格 -->
+    <div id="tabContentTable" class="p-0 overflow-x-auto">
+      <table class="w-full text-left text-xs md:text-sm border-collapse">
+        <thead>
+          <tr class="border-b border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)]">
+            <th class="py-3 px-4 font-semibold">月份 (`order_month`)</th>
+            <th class="py-3 px-4 font-semibold text-right">訂單數 (`total_orders`)</th>
+            <th class="py-3 px-4 font-semibold text-right">訂單佔比</th>
+            <th class="py-3 px-4 font-semibold text-right">總營收 (`total_revenue`)</th>
+            <th class="py-3 px-4 font-semibold text-right">營收佔比</th>
+            <th class="py-3 px-4 font-semibold text-right">平均每筆金額 (AOV)</th>
+            <th class="py-3 px-4 font-semibold">備註與重大事件</th>
+          </tr>
+        </thead>
+        <tbody id="dataTableBody" class="divide-y divide-[var(--border)] font-mono text-xs md:text-sm">
+          <!-- 動態填入表格內容 -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 內容頁 2: 原始 SQL 檢視 -->
+    <div id="tabContentSql" class="hidden p-5 bg-[#0d1117] text-gray-100 font-mono text-xs overflow-x-auto">
+      <pre><code>-- 1. 產出 2024 年 8 月至 2025 年 1 月月度營運指標
+WITH order_totals AS (
+  SELECT
+    o.order_id,
+    FORMAT_DATE('%Y-%m', o.order_date) AS order_month,
+    o.order_type,
+    SUM(oi.price) AS order_amount
+  FROM `YOUR_PROJECT_ID.cymbal_pets.orders` o
+  JOIN `YOUR_PROJECT_ID.cymbal_pets.order_items` oi
+    ON o.order_id = oi.order_id
+  WHERE o.order_date BETWEEN '2024-08-01' AND '2025-01-31'
+  GROUP BY o.order_id, order_month, o.order_type
+)
+SELECT
+  order_month,
+  COUNT(order_id) AS total_orders,
+  ROUND(SUM(order_amount), 2) AS total_revenue,
+  ROUND(AVG(order_amount), 2) AS avg_order_value
+FROM order_totals
+GROUP BY order_month
+ORDER BY order_month;
+
+-- 2. 依訂單類型 (order_type) 交叉歸因分析
+SELECT
+  order_month,
+  order_type,
+  COUNT(order_id) AS total_orders,
+  ROUND(SUM(order_amount), 2) AS total_revenue,
+  ROUND(AVG(order_amount), 2) AS avg_order_value
+FROM order_totals
+GROUP BY order_month, order_type
+ORDER BY order_month, order_type;</code></pre>
+    </div>
+  </section>
+
+  <!-- 頁尾宣告 -->
+  <footer class="text-center text-xs text-[var(--muted-foreground)] pt-2 pb-4">
+    Cymbal Pets Enterprise Data Pipeline • Powered by Google BigQuery, Cloud SQL & dbt Core
+  </footer>
+
+  <!-- 互動腳本與資料集定義 -->
+  <script>
+    // 嚴格取自 BigQuery 實際查詢結果的真實數據庫
+    const MONTHLY_DATA = [
+      {
+        month: "2024-08",
+        orders: 62060,
+        revenue: 6806112.15,
+        aov: 109.67,
+        note: "常態零售營運，客單價健康",
+        channels: [
+          { type: "Online", name: "線上訂單", orders: 37599, revenue: 4102512.16, aov: 109.11, shareOrd: 60.58, shareRev: 60.28 },
+          { type: "Offline", name: "實體門市", orders: 24461, revenue: 2703599.99, aov: 110.53, shareOrd: 39.42, shareRev: 39.72 }
+        ]
+      },
+      {
+        month: "2024-09",
+        orders: 53035,
+        revenue: 5871855.98,
+        aov: 110.72,
+        note: "下半年度營收相對低點，客單價持平",
+        channels: [
+          { type: "Online", name: "線上訂單", orders: 32410, revenue: 3586659.22, aov: 110.67, shareOrd: 61.11, shareRev: 61.08 },
+          { type: "Offline", name: "實體門市", orders: 20625, revenue: 2285196.76, aov: 110.80, shareOrd: 38.89, shareRev: 38.92 }
+        ]
+      },
+      {
+        month: "2024-10",
+        orders: 68883,
+        revenue: 7610053.97,
+        aov: 110.48,
+        note: "第四季初需求逐步升溫",
+        channels: [
+          { type: "Online", name: "線上訂單", orders: 42135, revenue: 4663163.13, aov: 110.67, shareOrd: 61.17, shareRev: 61.28 },
+          { type: "Offline", name: "實體門市", orders: 26748, revenue: 2946890.84, aov: 110.17, shareOrd: 38.83, shareRev: 38.72 }
+        ]
+      },
+      {
+        month: "2024-11",
+        orders: 73638,
+        revenue: 8104123.01,
+        aov: 110.05,
+        note: "感恩節購物前哨站，量能穩健增加",
+        channels: [
+          { type: "Online", name: "線上訂單", orders: 44972, revenue: 4949501.97, aov: 110.06, shareOrd: 61.07, shareRev: 61.07 },
+          { type: "Offline", name: "實體門市", orders: 28666, revenue: 3154621.04, aov: 110.05, shareOrd: 38.93, shareRev: 38.93 }
+        ]
+      },
+      {
+        month: "2024-12",
+        orders: 110274,
+        revenue: 12140942.48,
+        aov: 110.10,
+        note: "年終節慶購物大旺季，營收與訂單飆升",
+        channels: [
+          { type: "Online", name: "線上訂單", orders: 67389, revenue: 7422196.91, aov: 110.14, shareOrd: 61.11, shareRev: 61.13 },
+          { type: "Offline", name: "實體門市", orders: 42885, revenue: 4718745.57, aov: 110.03, shareOrd: 38.89, shareRev: 38.87 }
+        ]
+      },
+      {
+        month: "2025-01",
+        orders: 121439,
+        revenue: 12476072.76,
+        aov: 102.74,
+        note: "⚠️ 導入 B2B 批發促銷 (BIGORDER25 享75折)，AOV 降至 $102.74",
+        channels: [
+          { type: "Online", name: "線上訂單", orders: 58834, revenue: 6469798.69, aov: 109.97, shareOrd: 48.45, shareRev: 51.86 },
+          { type: "Offline", name: "實體門市", orders: 37605, revenue: 4113306.71, aov: 109.38, shareOrd: 30.97, shareRev: 32.97 },
+          { type: "B2B-Wholesale", name: "B2B 企業批發", orders: 25000, revenue: 1892967.36, aov: 75.72, shareOrd: 20.59, shareRev: 15.17 }
+        ]
+      }
+    ];
+
+    // 全局狀態
+    let currentMetric = 'aov'; // 'aov' | 'revenue' | 'orders'
+    let selectedMonth = 'ALL';
+
+    // 格式化輔助函式
+    const fmtCurrency = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtNumber = (n) => Number(n).toLocaleString('en-US');
+
+    // 初始化渲染
+    function init() {
+      renderTable();
+      renderChart();
+      renderChannelBreakdown();
+    }
+
+    // 篩選變更
+    function onFilterChange() {
+      selectedMonth = document.getElementById('monthFilter').value;
+      updateKpiCards();
+      renderChart();
+      renderChannelBreakdown();
+      highlightTableRow();
+    }
+
+    // 切換圖表主指標
+    function setChartMetric(metric) {
+      currentMetric = metric;
+
+      const btnAov = document.getElementById('btnMetricAov');
+      const btnRev = document.getElementById('btnMetricRev');
+      const btnOrd = document.getElementById('btnMetricOrd');
+
+      [btnAov, btnRev, btnOrd].forEach(btn => {
+        btn.className = "px-2.5 py-1 text-xs font-medium rounded-md text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-all";
+      });
+
+      if (metric === 'aov') {
+        btnAov.className = "px-2.5 py-1 text-xs font-medium rounded-md bg-blue-600 text-white transition-all shadow-xs";
+        document.getElementById('chartTitle').innerText = "每月平均每筆訂單金額 (AOV) 走勢圖";
+        document.getElementById('legendLabel').innerText = "AOV ($)";
+      } else if (metric === 'revenue') {
+        btnRev.className = "px-2.5 py-1 text-xs font-medium rounded-md bg-blue-600 text-white transition-all shadow-xs";
+        document.getElementById('chartTitle').innerText = "每月總營收 (Total Revenue) 走勢圖";
+        document.getElementById('legendLabel').innerText = "營收 ($)";
+      } else {
+        btnOrd.className = "px-2.5 py-1 text-xs font-medium rounded-md bg-blue-600 text-white transition-all shadow-xs";
+        document.getElementById('chartTitle').innerText = "每月訂單數 (Total Orders) 走勢圖";
+        document.getElementById('legendLabel').innerText = "訂單數 (筆)";
+      }
+
+      renderChart();
+    }
+
+    // 更新 KPI 卡片
+    function updateKpiCards() {
+      if (selectedMonth === 'ALL') {
+        const totalRev = MONTHLY_DATA.reduce((acc, d) => acc + d.revenue, 0);
+        const totalOrd = MONTHLY_DATA.reduce((acc, d) => acc + d.orders, 0);
+        const weightedAov = totalRev / totalOrd;
+
+        document.getElementById('kpiRevenue').innerText = fmtCurrency(totalRev);
+        document.getElementById('kpiOrders').innerText = fmtNumber(totalOrd);
+        document.getElementById('kpiAov').innerText = fmtCurrency(weightedAov);
+        document.getElementById('kpiMix').innerText = "全期間加權分析";
+        document.getElementById('kpiMixSub').innerText = "涵蓋零售與 2025/01 批發";
+      } else {
+        const data = MONTHLY_DATA.find(d => d.month === selectedMonth);
+        if (data) {
+          document.getElementById('kpiRevenue').innerText = fmtCurrency(data.revenue);
+          document.getElementById('kpiOrders').innerText = fmtNumber(data.orders);
+          document.getElementById('kpiAov').innerText = fmtCurrency(data.aov);
+          if (data.month === '2025-01') {
+            document.getElementById('kpiMix').innerText = "B2B 促銷稀釋期";
+            document.getElementById('kpiMixSub').innerText = "批發佔 20.6%，零售客單價維持 $109.74";
+          } else {
+            document.getElementById('kpiMix').innerText = "標準零售營運";
+            document.getElementById('kpiMixSub').innerText = "Online/Offline 佔比維持約 6:4";
+          }
+        }
+      }
+    }
+
+    // 渲染 SVG 圖表
+    function renderChart() {
+      const svg = document.getElementById('trendSvg');
+      svg.innerHTML = '';
+
+      const width = svg.clientWidth || 600;
+      const height = svg.clientHeight || 280;
+      const padLeft = 60;
+      const padRight = 30;
+      const padTop = 30;
+      const padBottom = 40;
+
+      const chartW = width - padLeft - padRight;
+      const chartH = height - padTop - padBottom;
+
+      const values = MONTHLY_DATA.map(d => d[currentMetric]);
+      let minVal = Math.min(...values);
+      let maxVal = Math.max(...values);
+
+      if (currentMetric === 'aov') {
+        minVal = 95;
+        maxVal = 118;
+      } else {
+        minVal = 0;
+        maxVal = maxVal * 1.15;
+      }
+
+      const getX = (i) => padLeft + (i / (MONTHLY_DATA.length - 1)) * chartW;
+      const getY = (val) => padTop + chartH - ((val - minVal) / (maxVal - minVal)) * chartH;
+
+      // 繪製背景水平網格線
+      const gridLines = 4;
+      for (let i = 0; i <= gridLines; i++) {
+        const yVal = minVal + (i / gridLines) * (maxVal - minVal);
+        const y = getY(yVal);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', padLeft);
+        line.setAttribute('x2', width - padRight);
+        line.setAttribute('y1', y);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', 'var(--border)');
+        line.setAttribute('stroke-dasharray', '3 3');
+        line.setAttribute('opacity', '0.6');
+        svg.appendChild(line);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', padLeft - 10);
+        text.setAttribute('y', y + 4);
+        text.setAttribute('text-anchor', 'end');
+        text.setAttribute('fill', 'var(--muted-foreground)');
+        text.setAttribute('font-size', '11px');
+        text.setAttribute('font-family', 'sans-serif');
+        text.textContent = currentMetric === 'orders' ? (yVal >= 1000 ? Math.round(yVal/1000) + 'k' : Math.round(yVal)) : (yVal >= 1000000 ? '$' + (yVal/1000000).toFixed(1) + 'M' : '$' + Math.round(yVal));
+        svg.appendChild(text);
+      }
+
+      // 若為 AOV，繪製 $110 基準輔助線
+      if (currentMetric === 'aov') {
+        const baselineY = getY(110);
+        const refLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        refLine.setAttribute('x1', padLeft);
+        refLine.setAttribute('x2', width - padRight);
+        refLine.setAttribute('y1', baselineY);
+        refLine.setAttribute('y2', baselineY);
+        refLine.setAttribute('stroke', '#f59e0b');
+        refLine.setAttribute('stroke-width', '1.5');
+        refLine.setAttribute('stroke-dasharray', '4 4');
+        svg.appendChild(refLine);
+      }
+
+      // 柱狀圖 (Bar) 弱化底襯
+      const barWidth = Math.min(36, chartW / MONTHLY_DATA.length * 0.45);
+      MONTHLY_DATA.forEach((d, i) => {
+        const x = getX(i) - barWidth / 2;
+        const y = getY(d[currentMetric]);
+        const barH = padTop + chartH - y;
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', barWidth);
+        rect.setAttribute('height', Math.max(0, barH));
+        rect.setAttribute('rx', '4');
+        rect.setAttribute('fill', d.month === selectedMonth ? '#2563eb' : (d.month === '2025-01' ? '#f43f5e' : '#3b82f6'));
+        rect.setAttribute('opacity', selectedMonth === 'ALL' || selectedMonth === d.month ? '0.7' : '0.25');
+        rect.style.cursor = 'pointer';
+        rect.onclick = () => {
+          document.getElementById('monthFilter').value = d.month;
+          onFilterChange();
+        };
+
+        // Hover Tooltip
+        rect.onmouseenter = (e) => showTooltip(e, d);
+        rect.onmouseleave = hideTooltip;
+        svg.appendChild(rect);
+      });
+
+      // 繪製趨勢折線
+      let pathD = '';
+      MONTHLY_DATA.forEach((d, i) => {
+        const x = getX(i);
+        const y = getY(d[currentMetric]);
+        pathD += (i === 0 ? 'M' : 'L') + ` ${x} ${y}`;
+      });
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', pathD);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', '#1d4ed8');
+      path.setAttribute('stroke-width', '2.5');
+      svg.appendChild(path);
+
+      // 繪製端點與 X 軸標籤
+      MONTHLY_DATA.forEach((d, i) => {
+        const x = getX(i);
+        const y = getY(d[currentMetric]);
+
+        // 圓點
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', d.month === selectedMonth ? '6' : '4.5');
+        circle.setAttribute('fill', d.month === '2025-01' ? '#f43f5e' : '#2563eb');
+        circle.setAttribute('stroke', '#ffffff');
+        circle.setAttribute('stroke-width', '2');
+        circle.style.cursor = 'pointer';
+        circle.onclick = () => {
+          document.getElementById('monthFilter').value = d.month;
+          onFilterChange();
+        };
+        circle.onmouseenter = (e) => showTooltip(e, d);
+        circle.onmouseleave = hideTooltip;
+        svg.appendChild(circle);
+
+        // X 軸標籤
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', x);
+        label.setAttribute('y', height - 12);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('fill', d.month === selectedMonth ? 'var(--foreground)' : 'var(--muted-foreground)');
+        label.setAttribute('font-weight', d.month === selectedMonth ? 'bold' : 'normal');
+        label.setAttribute('font-size', '12px');
+        label.textContent = d.month;
+        svg.appendChild(label);
+      });
+    }
+
+    // 顯示 Tooltip
+    function showTooltip(e, d) {
+      const tt = document.getElementById('chartTooltip');
+      tt.innerHTML = `
+        <div class="font-bold border-b border-gray-700 pb-1 mb-1.5 text-blue-400">${d.month} 數據詳情</div>
+        <div class="flex justify-between gap-3"><span>平均每筆金額：</span><span class="font-mono font-bold">${fmtCurrency(d.aov)}</span></div>
+        <div class="flex justify-between gap-3"><span>總營收：</span><span class="font-mono">${fmtCurrency(d.revenue)}</span></div>
+        <div class="flex justify-between gap-3"><span>訂單總數：</span><span class="font-mono">${fmtNumber(d.orders)} 筆</span></div>
+        <div class="mt-1 text-gray-400 text-[11px] leading-tight">${d.note}</div>
+      `;
+      tt.classList.remove('hidden');
+
+      const rect = document.getElementById('chartWrapper').getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      tt.style.left = Math.min(x + 10, rect.width - 200) + 'px';
+      tt.style.top = Math.max(10, y - 70) + 'px';
+    }
+
+    function hideTooltip() {
+      document.getElementById('chartTooltip').classList.add('hidden');
+    }
+
+    // 渲染右側通路細分
+    function renderChannelBreakdown() {
+      const container = document.getElementById('channelBreakdownContainer');
+      const badge = document.getElementById('channelFilterMonthBadge');
+      container.innerHTML = '';
+
+      let channels = [];
+      if (selectedMonth === 'ALL') {
+        badge.innerText = '全期間累計總覽';
+        // 累計各通路數據
+        const onlineOrd = MONTHLY_DATA.reduce((acc, m) => acc + (m.channels.find(c => c.type === 'Online')?.orders || 0), 0);
+        const onlineRev = MONTHLY_DATA.reduce((acc, m) => acc + (m.channels.find(c => c.type === 'Online')?.revenue || 0), 0);
+        const offlineOrd = MONTHLY_DATA.reduce((acc, m) => acc + (m.channels.find(c => c.type === 'Offline')?.orders || 0), 0);
+        const offlineRev = MONTHLY_DATA.reduce((acc, m) => acc + (m.channels.find(c => c.type === 'Offline')?.revenue || 0), 0);
+        const b2bOrd = 25000;
+        const b2bRev = 1892967.36;
+        const totalOrd = onlineOrd + offlineOrd + b2bOrd;
+
+        channels = [
+          { name: "線上訂單 (`Online`)", orders: onlineOrd, revenue: onlineRev, aov: onlineRev/onlineOrd, pct: (onlineOrd/totalOrd*100).toFixed(1), color: "bg-blue-600" },
+          { name: "實體門市 (`Offline`)", orders: offlineOrd, revenue: offlineRev, aov: offlineRev/offlineOrd, pct: (offlineOrd/totalOrd*100).toFixed(1), color: "bg-indigo-500" },
+          { name: "B2B 企業批發 (`B2B-Wholesale`)", orders: b2bOrd, revenue: b2bRev, aov: b2bRev/b2bOrd, pct: (b2bOrd/totalOrd*100).toFixed(1), color: "bg-rose-500" }
+        ];
+      } else {
+        badge.innerText = selectedMonth + ' 月份細分';
+        const d = MONTHLY_DATA.find(m => m.month === selectedMonth);
+        if (d) {
+          channels = d.channels.map(c => ({
+            name: `${c.name} (\`${c.type}\`)`,
+            orders: c.orders,
+            revenue: c.revenue,
+            aov: c.aov,
+            pct: c.shareOrd.toFixed(1),
+            color: c.type === 'Online' ? 'bg-blue-600' : (c.type === 'Offline' ? 'bg-indigo-500' : 'bg-rose-500')
+          }));
+        }
+      }
+
+      channels.forEach(ch => {
+        const item = document.createElement('div');
+        item.className = "space-y-1.5";
+        item.innerHTML = `
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-semibold text-[var(--foreground)]">${ch.name}</span>
+            <span class="text-[var(--muted-foreground)] font-mono">${ch.pct}% (${fmtNumber(ch.orders)} 筆)</span>
+          </div>
+          <div class="w-full bg-[var(--background)] h-2 rounded-full overflow-hidden border border-[var(--border)]">
+            <div class="${ch.color} h-full rounded-full transition-all duration-500" style="width: ${ch.pct}%"></div>
+          </div>
+          <div class="flex justify-between items-center text-[11px] text-[var(--muted-foreground)] pt-0.5">
+            <span>營收：<strong class="text-[var(--foreground)] font-mono">${fmtCurrency(ch.revenue)}</strong></span>
+            <span>AOV：<strong class="text-[var(--foreground)] font-mono">${fmtCurrency(ch.aov)}</strong></span>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    // 渲染原始數據表格
+    function renderTable() {
+      const tbody = document.getElementById('dataTableBody');
+      tbody.innerHTML = '';
+
+      const totalRev = MONTHLY_DATA.reduce((acc, d) => acc + d.revenue, 0);
+      const totalOrd = MONTHLY_DATA.reduce((acc, d) => acc + d.orders, 0);
+
+      MONTHLY_DATA.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.id = 'row-' + d.month;
+        tr.className = "hover:bg-[var(--background)]/60 transition-colors";
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-bold text-blue-600 dark:text-blue-400">${d.month}</td>
+          <td class="py-3 px-4 text-right">${fmtNumber(d.orders)}</td>
+          <td class="py-3 px-4 text-right text-[var(--muted-foreground)]">${((d.orders/totalOrd)*100).toFixed(1)}%</td>
+          <td class="py-3 px-4 text-right">${fmtCurrency(d.revenue)}</td>
+          <td class="py-3 px-4 text-right text-[var(--muted-foreground)]">${((d.revenue/totalRev)*100).toFixed(1)}%</td>
+          <td class="py-3 px-4 text-right font-bold ${d.month === '2025-01' ? 'text-rose-500' : ''}">${fmtCurrency(d.aov)}</td>
+          <td class="py-3 px-4 text-xs font-sans text-[var(--muted-foreground)]">${d.note}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // 總計列
+      const totalTr = document.createElement('tr');
+      totalTr.className = "bg-[var(--card)] font-bold border-t-2 border-[var(--border)]";
+      totalTr.innerHTML = `
+        <td class="py-3 px-4 font-sans">合計 / 加權平均</td>
+        <td class="py-3 px-4 text-right">${fmtNumber(totalOrd)}</td>
+        <td class="py-3 px-4 text-right">100.0%</td>
+        <td class="py-3 px-4 text-right">${fmtCurrency(totalRev)}</td>
+        <td class="py-3 px-4 text-right">100.0%</td>
+        <td class="py-3 px-4 text-right font-sans text-blue-600 dark:text-blue-400">${fmtCurrency(totalRev/totalOrd)}</td>
+        <td class="py-3 px-4 text-xs font-sans text-[var(--muted-foreground)]">共 6 個完整營運月份</td>
+      `;
+      tbody.appendChild(totalTr);
+    }
+
+    // 表格列高亮
+    function highlightTableRow() {
+      MONTHLY_DATA.forEach(d => {
+        const row = document.getElementById('row-' + d.month);
+        if (row) {
+          if (selectedMonth === d.month) {
+            row.classList.add('bg-blue-500/10');
+          } else {
+            row.classList.remove('bg-blue-500/10');
+          }
+        }
+      });
+    }
+
+    // 標籤頁切換
+    function switchTab(tab) {
+      const btnTable = document.getElementById('tabBtnTable');
+      const btnSql = document.getElementById('tabBtnSql');
+      const contentTable = document.getElementById('tabContentTable');
+      const contentSql = document.getElementById('tabContentSql');
+
+      if (tab === 'table') {
+        btnTable.className = "text-xs md:text-sm font-semibold pb-3 border-b-2 border-blue-600 text-blue-600 transition-colors";
+        btnSql.className = "text-xs md:text-sm font-medium pb-3 border-b-2 border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors";
+        contentTable.classList.remove('hidden');
+        contentSql.classList.add('hidden');
+      } else {
+        btnSql.className = "text-xs md:text-sm font-semibold pb-3 border-b-2 border-blue-600 text-blue-600 transition-colors";
+        btnTable.className = "text-xs md:text-sm font-medium pb-3 border-b-2 border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors";
+        contentSql.classList.remove('hidden');
+        contentTable.classList.add('hidden');
+      }
+    }
+
+    // 下載 HTML
+    function exportOfflineHTML() {
+      const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cymbal_pets_dashboard_${new Date().toISOString().slice(0,10)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // 視窗大小自適應
+    window.addEventListener('resize', () => {
+      renderChart();
+    });
+
+    // 啟動
+    init();
+  </script>
+</body>
+</html>

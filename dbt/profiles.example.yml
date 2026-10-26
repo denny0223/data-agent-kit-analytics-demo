@@ -1,0 +1,11 @@
+cymbal_pets_project:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GOOGLE_CLOUD_PROJECT') }}"
+      dataset: cymbal_pets
+      threads: 4
+      timeout_seconds: 300
+      location: US
