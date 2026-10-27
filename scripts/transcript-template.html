@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Data Agent Kit 與 Antigravity IDE 的實作對話紀錄，包含原始提問、Agent 回覆與完整工具呼叫。">
+  <title>Agent 協作紀錄 · Data Agent Kit</title>
+  <style>
+    :root { color-scheme:light; --paper:#fff; --bg:#f6f7f9; --ink:#202938; --muted:#647084; --line:#e3e7ee; --accent:#2954d1; --soft:#edf2ff; --sidebar:278px; --top:64px; }
+    * { box-sizing:border-box; }
+    html { scroll-padding-top:0; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; -webkit-font-smoothing:antialiased; }
+    a { color:var(--accent); text-underline-offset:4px; }
+    a:hover { text-decoration-thickness:2px; }
+    button,input,select { font:inherit; }
+    button,select,summary { cursor:pointer; }
+    button { color:inherit; }
+    :focus-visible { outline:3px solid #6287ef; outline-offset:4px; }
+    [hidden] { display:none!important; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    .skip { position:fixed; left:16px; top:-80px; z-index:20; background:white; padding:12px; }
+    .skip:focus { top:12px; }
+    .topbar { position:fixed; inset:0 0 auto; height:var(--top); z-index:8; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 28px; border-bottom:1px solid var(--line); background:#ffffffed; backdrop-filter:blur(16px); }
+    .brand { display:flex; gap:12px; align-items:center; text-decoration:none; color:var(--ink); font-size:14px; font-weight:700; letter-spacing:.02em; }
+    .brand svg { color:var(--accent); flex:none; }
+    .brand small { color:var(--muted); font-size:11px; font-weight:500; margin-left:8px; padding-left:12px; border-left:1px solid var(--line); }
+    .site-links { display:flex; align-items:center; gap:24px; font-size:13px; }
+    .site-links a { color:var(--muted); text-decoration:none; }
+    .site-links a:hover { color:var(--accent); }
+    .site-links .dashboard-link { display:flex; align-items:center; gap:8px; padding:7px 13px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:white; }
+    .sidebar { position:fixed; left:0; top:var(--top); bottom:0; width:var(--sidebar); background:var(--paper); border-right:1px solid var(--line); padding:28px 16px 16px; display:flex; flex-direction:column; }
+    .nav-heading { display:flex; justify-content:space-between; align-items:center; padding:0 12px; margin:0 0 6px; }
+    .nav-heading h2 { font-size:13px; margin:0; }
+    .nav-heading span { color:var(--muted); font:11px ui-monospace,monospace; }
+    .nav-hint { font-size:12px; color:var(--muted); margin:0 12px 18px; }
+    .sidebar nav { overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; flex:1; min-height:0; }
+    .questions { list-style:none; padding:0; margin:0; }
+    .questions li { margin:3px 0; }
+    .questions a { display:flex; align-items:flex-start; gap:12px; padding:12px 10px; border-radius:9px; color:#526073; text-decoration:none; font-size:12px; line-height:1.65; transition:background .15s,color .15s; }
+    .questions a:hover { color:var(--accent); background:#f5f7fc; }
+    .questions a[aria-current] { background:var(--soft); color:#2545a7; }
+    .question-number { flex:none; width:22px; padding-top:2px; font:11px/1.7 ui-monospace,monospace; color:#8994a7; }
+    [aria-current] .question-number { color:var(--accent); font-weight:700; }
+    .question-label { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+    .nav-progress { border-top:1px solid var(--line); padding:16px 12px 2px; margin-top:14px; font-size:11px; color:var(--muted); }
+    .nav-progress div { display:flex; justify-content:space-between; }
+    progress { appearance:none; width:100%; height:3px; display:block; border:0; margin-top:10px; background:#edf0f6; }
+    progress::-webkit-progress-bar { background:#edf0f6; border-radius:4px; }
+    progress::-webkit-progress-value { background:var(--accent); border-radius:4px; }
+    progress::-moz-progress-bar { background:var(--accent); }
+    .page { margin-left:var(--sidebar); padding:calc(var(--top) + 42px) 42px 48px; }
+    .reading { max-width:900px; margin:auto; }
+    .eyebrow { margin:0 0 12px; color:var(--muted); font:11px/1.6 ui-monospace,monospace; letter-spacing:.08em; }
+    .eyebrow .dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent); margin:0 8px 1px 0; }
+    h1 { font-size:clamp(30px,3.3vw,42px); line-height:1.25; font-weight:700; letter-spacing:-.035em; margin:0 0 12px; }
+    .lede { margin:0; color:var(--muted); font-size:15px; }
+    .model-info { display:flex; align-items:baseline; flex-wrap:wrap; gap:7px; margin:14px 0 0; color:var(--muted); font-size:11px; }
+    .model-info strong { color:#445675; font-weight:550; font-family:ui-monospace,monospace; }
+    .model-info small { font-size:10px; color:#7b8799; }
+    .hero-foot { display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; align-items:center; margin:26px 0 28px; }
+    .stats { display:flex; gap:24px; margin:0; }
+    .stats div { display:flex; gap:7px; align-items:baseline; }
+    .stats dt { order:2; color:var(--muted); font-size:12px; }
+    .stats dd { margin:0; font:600 20px/1.4 ui-monospace,monospace; letter-spacing:-.04em; }
+    .lab-link { font-size:12px; text-decoration:none; }
+    .toolbar { position:sticky; top:var(--top); z-index:5; background:#f6f7f9f2; backdrop-filter:blur(16px); padding:14px 0 10px; border-block:1px solid var(--line); margin-bottom:30px; }
+    .controls { display:flex; gap:10px; align-items:center; }
+    .search { flex:1; min-width:0; position:relative; }
+    .search svg { position:absolute; left:13px; top:13px; color:#748196; pointer-events:none; }
+    input,select { color:var(--ink); background:white; border:1px solid #d9dfe9; border-radius:8px; height:44px; }
+    input { width:100%; padding:9px 14px 9px 39px; font-size:13px; }
+    input::placeholder { color:#8590a2; }
+    select { padding:8px 30px 8px 12px; font-size:12px; max-width:150px; }
+    .toolbar-meta { display:flex; align-items:center; justify-content:space-between; min-height:26px; margin-top:7px; gap:8px; font-size:11px; color:var(--muted); }
+    .toolbar-actions { display:flex; gap:14px; }
+    .text-button { border:0; background:none; padding:3px 0; color:var(--muted); font-size:11px; text-underline-offset:3px; }
+    .text-button:hover { color:var(--accent); text-decoration:underline; }
+    .turn { margin-bottom:40px; padding-bottom:10px; border-bottom:1px solid var(--line); }
+    .turn:last-of-type { border-bottom:0; }
+    .message-card,.tool-entry,h3[id],#timeline { scroll-margin-top:180px; }
+    .message-card { background:white; border:1px solid var(--line); border-radius:12px; padding:24px 28px 0; margin:14px 0; overflow:hidden; }
+    .message-card.user { background:#edf2fb; border-color:#dce5f5; padding-bottom:0; }
+    .message-meta { display:flex; align-items:center; gap:9px; margin-bottom:16px; color:var(--muted); }
+    .role-mark { display:grid; place-items:center; width:24px; height:24px; border-radius:7px; background:#eaf0fb; color:var(--accent); font:600 11px ui-monospace,monospace; }
+    .user .role-mark { background:var(--accent); color:white; }
+    .message-meta h2 { margin:0; font-size:12px; color:var(--ink); font-weight:600; }
+    .step { font:11px/1.6 ui-monospace,monospace; color:#768297; text-decoration:none; white-space:nowrap; }
+    .step:hover { color:var(--accent); text-decoration:underline; }
+    time { margin-left:auto; font:11px ui-monospace,monospace; color:#7b8698; }
+    .prose { font-size:15px; line-height:1.9; overflow-wrap:anywhere; }
+    .user .prose { font-size:16px; line-height:1.85; }
+    .prose > :first-child { margin-top:0; }
+    .prose > :last-child { margin-bottom:24px; }
+    .prose p { margin:0 0 16px; }
+    .prose h1,.prose h2,.prose h3,.prose h4,.prose h5,.prose h6 { font-size:17px; letter-spacing:0; line-height:1.6; margin:30px 0 12px; font-weight:650; }
+    .prose h1 { font-size:22px; }
+    .prose h2 { font-size:19px; }
+    .prose h3 { font-size:17px; }
+    .prose ul,.prose ol { padding-left:24px; margin:12px 0 20px; }
+    .prose li { padding-left:3px; margin:5px 0; }
+    .prose li > p { margin:6px 0; }
+    .prose strong { font-weight:650; color:#182538; }
+    .prose blockquote { margin:20px 0; padding:10px 18px; border-left:3px solid #9ab0ec; background:#f5f7fc; color:#526073; }
+    .prose blockquote > :last-child { margin-bottom:0; }
+    .prose hr { border:0; border-top:1px solid var(--line); margin:28px 0; }
+    .prose :not(pre) > code { font: .88em/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; padding:2px 5px; border-radius:4px; color:#355294; background:#eef2f9; }
+    .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:8px; margin:20px 0 24px; scrollbar-width:thin; }
+    .prose table { width:100%; border-collapse:collapse; font-size:13px; line-height:1.7; }
+    .prose th { background:#f5f7fb; color:#526073; font-size:12px; font-weight:600; text-align:left; white-space:nowrap; }
+    .prose th,.prose td { padding:11px 14px; border-bottom:1px solid var(--line); min-width:90px; }
+    .prose tr:last-child td { border-bottom:0; }
+    .prose tbody tr:hover { background:#fafbfe; }
+    .code-block { border:1px solid #29394c; border-radius:9px; overflow:hidden; margin:20px 0; background:#192433; color:#dbe6f7; }
+    .code-label { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; border-bottom:1px solid #314053; color:#adbed6; font:11px ui-monospace,monospace; }
+    .code-label span { text-transform:uppercase; }
+    .code-label button { background:none; border:0; color:#b7c6db; font-size:11px; padding:4px 0; }
+    .code-block pre { margin:0; padding:18px; overflow:auto; max-height:65vh; font:12px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace; tab-size:2; }
+    .code-block code { font:inherit; }
+    .tool-group { margin:14px 0; border:1px solid var(--line); border-radius:10px; background:#fbfcfe; overflow:hidden; }
+    .tool-group > summary,.tool-details > summary { display:flex; align-items:center; gap:12px; list-style:none; }
+    summary::-webkit-details-marker { display:none; }
+    .tool-group > summary { padding:15px 18px; }
+    .tool-group > summary:hover { background:#f0f3f9; }
+    .tool-glyph { color:#7a8ba7; font:22px ui-monospace,monospace; flex:none; }
+    .group-label { min-width:0; flex:1; }
+    .group-label strong { font-size:12px; font-weight:550; display:block; color:#53637d; }
+    .group-names { display:block; font:10px/1.8 ui-monospace,monospace; color:#7a879b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .group-action { color:var(--muted); font-size:11px; white-space:nowrap; }
+    .group-action span { display:inline-block; margin-left:6px; }
+    .tool-group[open] > summary .group-action span { transform:rotate(180deg); }
+    .group-body { padding:0 14px 14px; border-top:1px solid var(--line); }
+    .tool-entry { background:white; margin-top:8px; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+    .tool-details > summary { padding:12px; flex-wrap:wrap; gap:8px; }
+    .tool-details > summary::before { content:"›"; color:#7f8da3; transition:transform .15s; }
+    .tool-details[open] > summary::before { transform:rotate(90deg); }
+    .tool-order { color:#99a2b1; font:10px ui-monospace,monospace; }
+    .tool-name { flex:1; color:#445675; font:12px/1.7 ui-monospace,monospace; overflow-wrap:anywhere; min-width:100px; }
+    .error-tag { font:10px/1.6 ui-monospace,monospace; color:#a64235; background:#fff0ec; padding:2px 6px; border-radius:4px; white-space:nowrap; }
+    .detail-body { border-top:1px solid var(--line); padding:18px; min-width:0; }
+    .meta { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+    .detail-body h3 { font:600 12px/1.7 ui-monospace,monospace; margin:22px 0 10px; overflow-wrap:anywhere; }
+    .literal { margin:10px 0; padding:14px; background:#f5f7fa; border:1px solid var(--line); border-radius:6px; white-space:pre-wrap; overflow-wrap:anywhere; overflow:auto; max-height:60vh; font:12px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace; tab-size:2; }
+    .arguments { margin:14px 0; }
+    .arguments dt { font:11px/1.6 ui-monospace,monospace; color:var(--muted); }
+    .arguments dd { margin:4px 0 18px; }
+    .raw,.metadata { font-size:11px; color:var(--muted); margin-top:14px; }
+    .raw > summary,.metadata > summary { padding:4px 0; list-style:none; }
+    .raw > summary::before,.metadata > summary::before { content:"+ "; font-family:ui-monospace,monospace; }
+    .raw[open] > summary::before,.metadata[open] > summary::before { content:"− "; }
+    .message-card > .raw { margin:0 -28px; padding:9px 28px; border-top:1px solid #e2e7f0; background:#ffffff40; }
+    .copy { margin:10px 0 0; border:1px solid var(--line); border-radius:6px; background:white; padding:6px 10px; font-size:11px; }
+    :target.message-card,:target.tool-entry { box-shadow:0 0 0 3px #c8d6ff; }
+    .empty { text-align:center; padding:60px 20px; color:var(--muted); }
+    .empty strong { display:block; color:var(--ink); margin-bottom:8px; }
+    .archive-info { border-top:1px solid var(--line); padding-top:22px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+    .archive-info summary { color:#4c5a72; }
+    .archive-info p { margin:10px 0; }
+    .archive-info code { font-size:11px; }
+    .footnote { display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:11px; color:#7a879b; padding-top:24px; }
+    .nav-toggle { display:none; }
+    dialog { border:1px solid var(--line); border-radius:18px; background:white; color:var(--ink); box-shadow:0 16px 60px #17274430; padding:22px 14px 12px; width:min(520px,calc(100% - 24px)); max-height:80dvh; }
+    dialog::backdrop { background:#17243765; backdrop-filter:blur(4px); }
+    dialog[open] { display:flex; flex-direction:column; }
+    dialog .nav-heading,dialog .nav-hint { flex-shrink:0; }
+    dialog nav { overflow:auto; min-height:0; overscroll-behavior:contain; }
+    dialog .questions a { font-size:14px; }
+    dialog .close-nav { min-width:44px; min-height:44px; border:0; border-radius:8px; background:#f2f4f8; font-size:18px; }
+    body:has(dialog[open]) { overflow:hidden; }
+    #copy-status { position:fixed; bottom:24px; left:calc(50% + var(--sidebar)/2); transform:translateX(-50%); z-index:12; border-radius:8px; background:#223046; color:white; font-size:12px; padding:10px 18px; box-shadow:0 6px 24px #18202e20; max-width:calc(100% - 32px); }
+    #copy-status:empty { display:none; }
+    @media (max-width:1100px) {
+      :root { --sidebar:246px; }
+      .page { padding-left:26px; padding-right:26px; }
+      .topbar { padding:0 22px; }
+      .brand small { display:none; }
+      .stats { gap:18px; }
+    }
+    @media (max-width:850px) {
+      :root { --sidebar:0px; --top:58px; }
+      .sidebar { display:none; }
+      .page { padding:calc(var(--top) + 30px) 24px 100px; }
+      .topbar { padding:0 20px; }
+      .nav-toggle { display:flex; align-items:center; gap:12px; position:fixed; right:22px; bottom:22px; z-index:9; border:1px solid #3653a6; border-radius:99px; background:#2346af; color:white; padding:13px 20px; box-shadow:0 6px 24px #15378430; font-size:13px; }
+      .nav-toggle span { color:#c8d6ff; font:11px ui-monospace,monospace; }
+      #copy-status { bottom:86px; }
+    }
+    @media (max-width:520px) {
+      .topbar { padding:0 14px; gap:10px; }
+      .brand { gap:8px; font-size:12px; flex-shrink:0; white-space:nowrap; }
+      .brand svg { width:22px; }
+      .site-links { gap:10px; font-size:11px; white-space:nowrap; }
+      .download-word { display:none; }
+      .site-links .github-link { display:none; }
+      .site-links .dashboard-link { padding:6px 9px; }
+      .page { padding:calc(var(--top) + 26px) 14px 100px; }
+      h1 { font-size:31px; }
+      .eyebrow { font-size:10px; }
+      .lede { font-size:13px; }
+      .hero-foot { margin:22px 0 24px; gap:16px; }
+      .stats { gap:22px; }
+      .stats dd { font-size:19px; }
+      .stats dt { font-size:11px; }
+      .toolbar { margin-bottom:24px; }
+      .controls { gap:7px; }
+      input { font-size:12px; }
+      select { max-width:109px; padding-right:15px; font-size:11px; }
+      .toolbar-meta { font-size:10px; }
+      .toolbar-actions { gap:10px; }
+      .message-card { border-radius:10px; padding:18px 18px 0; }
+      .message-card > .raw { margin:0 -18px; padding:9px 18px; }
+      .message-meta { gap:7px; }
+      .message-meta h2 { font-size:11px; }
+      .message-meta time,.message-meta .step { font-size:9px; }
+      .prose { font-size:14px; }
+      .user .prose { font-size:15px; }
+      .prose th,.prose td { padding:9px 12px; }
+      .group-names { font-size:9px; }
+      .tool-group > summary { padding:12px; gap:8px; }
+      .group-action { font-size:10px; }
+      .group-body { padding:0 8px 8px; }
+      .detail-body { padding:12px; }
+      .nav-toggle { right:16px; bottom:16px; }
+      .turn { margin-bottom:30px; }
+    }
+    @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important; transition:none!important; } }
+    @media print {
+      .topbar,.sidebar,.toolbar,.nav-toggle,dialog,.raw,.tool-group { display:none!important; }
+      .page { padding:0; margin:0; }
+      .message-card { break-inside:avoid; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#timeline">跳至對話內容</a>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Data Agent Kit 對話紀錄首頁">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x="2" y="2" width="10" height="10" rx="3" fill="currentColor"/><rect x="15" y="2" width="9" height="9" rx="3" fill="currentColor" opacity=".3"/><rect x="2" y="15" width="9" height="9" rx="3" fill="currentColor" opacity=".3"/><rect x="14" y="14" width="10" height="10" rx="3" fill="currentColor"/></svg>
+      Data Agent Kit <small>SESSION ARCHIVE</small>
+    </a>
+    <nav class="site-links" aria-label="網站導覽">
+      <a class="github-link" href="https://github.com/denny0223/data-agent-kit-analytics-demo">GitHub ↗</a>
+      <a href="session.jsonl" download aria-label="下載公開版 JSONL"><span class="download-word">下載 </span>JSONL ↓</a>
+      <a class="dashboard-link" href="../">儀表板 <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+
+  <aside class="sidebar" aria-label="問題導覽">
+    <div class="nav-heading"><h2>跳至使用者問題</h2><span>{{USERS}} QUESTIONS</span></div>
+    <p class="nav-hint">依原始提問順序閱讀</p>
+    <nav aria-label="使用者問題"><ol class="questions">{{QUESTIONS}}</ol></nav>
+    <div class="nav-progress"><div><span>目前閱讀</span><span id="position">01 / {{USERS}}</span></div><progress id="progress" value="1" max="{{USERS}}" aria-label="目前提問位置"></progress></div>
+  </aside>
+
+  <div class="page" id="top">
+    <div class="reading">
+      <header class="hero">
+        <p class="eyebrow"><span class="dot" aria-hidden="true"></span>GDG CLOUD TAIPEI · 2026.10.27</p>
+        <h1>Agent 協作紀錄</h1>
+        <p class="lede">Data Agent Kit × Antigravity IDE<br>原始提問、Agent 回覆，以及每一步工具操作。</p>
+        <p class="model-info"><span>使用模型</span><strong>Gemini 3.8 Flash Medium</strong><small>講者提供</small></p>
+        <div class="hero-foot">
+          <dl class="stats"><div><dt>個提問</dt><dd>{{USERS}}</dd></div><div><dt>則回覆</dt><dd>{{REPLIES}}</dd></div><div><dt>次工具呼叫</dt><dd>{{CALLS}}</dd></div></dl>
+          <a class="lab-link" href="https://codelabs.developers.google.com/dak-analytics-eng-antigravity-ide?hl=zh-tw">開啟這堂 Codelab ↗</a>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="紀錄篩選">
+        <div class="controls">
+          <label class="search"><span class="sr-only">搜尋完整紀錄</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search" type="search" placeholder="搜尋問題、SQL、工具或輸出…" disabled></label>
+          <label><span class="sr-only">顯示類型</span><select id="kind" aria-label="顯示類型" disabled><option value="all">對話與工具</option><option value="dialogue">只看對話</option><option value="tools">只看工具</option></select></label>
+        </div>
+        <div class="toolbar-meta"><output id="count" aria-live="polite">{{USERS}} 個提問 · 工具紀錄已分組</output><div class="toolbar-actions"><button class="text-button" id="clear" type="button" hidden>清除篩選</button><button class="text-button" id="collapse" type="button" disabled>收合工具</button></div></div>
+      </section>
+
+      <main id="timeline">
+{{ENTRIES}}
+        <div id="empty" class="empty" hidden><strong>找不到符合的紀錄</strong>試試工具名稱、SQL 欄位，或清除搜尋條件。</div>
+      </main>
+
+      <footer>
+        <details class="archive-info">
+          <summary>關於這份公開紀錄</summary>
+          <p>紀錄截至 {{LAST_TIME}}（臺灣時間）。Session <code>{{SESSION_ID}}</code>。</p>
+          <p>對話依原文渲染 Markdown，連續工具呼叫收合為一組。保留 {{CALLS}} 次呼叫、{{RESULTS}} 筆結果，以及工具參數、錯誤、時間與其他中繼資料。公開版省略內部推理與系統訊息，並置換本機家目錄、Google Cloud 專案 ID 與編號。</p>
+          <p>JSONL 保留公開處理後的原始字串；網頁中的工具參數提供格式化顯示，終端輸出移除 ANSI 色碼。紀錄中的 HTML 與命令不會執行。</p>
+          <p>原始來源 SHA-256：<code>{{SOURCE_HASH}}</code></p>
+        </details>
+        <div class="footnote"><span>Data Agent Kit · Antigravity · Cymbal Pets</span><a href="https://github.com/denny0223/data-agent-kit-analytics-demo">在 GitHub 檢視原始碼 ↗</a></div>
+      </footer>
+    </div>
+  </div>
+
+  <button class="nav-toggle" id="nav-toggle" type="button" aria-haspopup="dialog" aria-controls="question-drawer" disabled>問題目錄 <span id="mobile-position">01 / {{USERS}}</span> ↑</button>
+  <dialog id="question-drawer" aria-labelledby="drawer-title">
+    <div class="nav-heading"><h2 id="drawer-title">跳至使用者問題</h2><button class="close-nav" type="button" aria-label="關閉問題目錄">×</button></div>
+    <p class="nav-hint">選擇原始提問，接著閱讀 Agent 如何回應。</p>
+    <nav aria-label="行動版使用者問題"><ol class="questions">{{QUESTIONS}}</ol></nav>
+  </dialog>
+  <span id="copy-status" role="status"></span>
+
+  <script>
+    'use strict';
+    const entries = Array.from(document.querySelectorAll('.record'));
+    const groups = Array.from(document.querySelectorAll('.tool-group'));
+    const turns = Array.from(document.querySelectorAll('.turn'));
+    const search = document.getElementById('search');
+    const kind = document.getElementById('kind');
+    const count = document.getElementById('count');
+    const empty = document.getElementById('empty');
+    const clear = document.getElementById('clear');
+    const collapse = document.getElementById('collapse');
+    const copyStatus = document.getElementById('copy-status');
+    const searchText = new Map(entries.map(entry => [entry, entry.textContent.toLowerCase()]));
+    const drawer = document.getElementById('question-drawer');
+    const navToggle = document.getElementById('nav-toggle');
+    const navLinks = Array.from(document.querySelectorAll('.questions a'));
+    let wasSearching = false;
+    let activeQuestion = '';
+    let copyTimer;
+
+    function filter() {
+      const query = search.value.trim().toLowerCase();
+      let visible = 0;
+      for (const entry of entries) {
+        const isTool = entry.classList.contains('tool-entry');
+        const typeMatches = kind.value === 'all' || (kind.value === 'tools' ? isTool : !isTool);
+        entry.hidden = !typeMatches || !searchText.get(entry).includes(query);
+        if (!entry.hidden) visible++;
+        const detail = entry.querySelector('.tool-details');
+        if (detail && (query || wasSearching)) detail.open = Boolean(query) && !entry.hidden;
+      }
+      for (const group of groups) {
+        group.hidden = !Array.from(group.querySelectorAll('.record')).some(entry => !entry.hidden);
+        if (query || wasSearching) group.open = Boolean(query) && !group.hidden;
+      }
+      for (const turn of turns) {
+        turn.hidden = !Array.from(turn.querySelectorAll('.record')).some(entry => !entry.hidden);
+      }
+      const visibleTurns = turns.filter(turn => !turn.hidden).length;
+      count.textContent = query ? visible + ' 段符合 · ' + visibleTurns + ' 個提問' :
+        visibleTurns + ' 個提問 · ' + (kind.value === 'dialogue' ? '只顯示對話' : '工具紀錄已分組');
+      empty.hidden = visible !== 0;
+      clear.hidden = !query && kind.value === 'all';
+      collapse.disabled = kind.value === 'dialogue';
+      wasSearching = Boolean(query);
+      updatePosition();
+    }
+
+    function updatePosition() {
+      const visibleTurns = turns.filter(turn => !turn.hidden);
+      if (!visibleTurns.length) return;
+      let current = visibleTurns[0];
+      for (const turn of visibleTurns) {
+        if (turn.getBoundingClientRect().top <= 210) current = turn;
+      }
+      if (activeQuestion === current.dataset.question) return;
+      activeQuestion = current.dataset.question;
+      for (const link of navLinks) {
+        if (link.hash === '#' + activeQuestion) link.setAttribute('aria-current', 'step');
+        else link.removeAttribute('aria-current');
+      }
+      const position = current.dataset.number + ' / ' + turns.length;
+      document.getElementById('position').textContent = position;
+      document.getElementById('mobile-position').textContent = position;
+      document.getElementById('progress').value = Number(current.dataset.number);
+      const active = document.querySelector('.sidebar a[aria-current]');
+      if (active) {
+        const nav = active.closest('nav');
+        const linkBox = active.getBoundingClientRect();
+        const navBox = nav.getBoundingClientRect();
+        if (linkBox.top < navBox.top || linkBox.bottom > navBox.bottom) {
+          nav.scrollTop += linkBox.top - navBox.top - nav.clientHeight / 2;
+        }
+      }
+    }
+
+    search.addEventListener('input', filter);
+    kind.addEventListener('change', filter);
+    clear.addEventListener('click', () => {
+      search.value = '';
+      kind.value = 'all';
+      filter();
+      search.focus();
+    });
+    collapse.addEventListener('click', () => {
+      for (const detail of document.querySelectorAll('.tool-group,.tool-details')) detail.open = false;
+    });
+
+    document.addEventListener('click', async event => {
+      const button = event.target.closest('[data-copy],[data-copy-code]');
+      if (!button) return;
+      const text = button.hasAttribute('data-copy-code') ?
+        button.closest('.code-block').querySelector('code').textContent : button.nextElementSibling.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        copyStatus.textContent = button.hasAttribute('data-copy-code') ? '已複製程式碼' : '已複製原始 JSON 紀錄';
+      } catch {
+        copyStatus.textContent = '請選取文字複製，或下載 JSONL。';
+      }
+      clearTimeout(copyTimer);
+      copyTimer = setTimeout(() => { copyStatus.textContent = ''; }, 3500);
+    });
+
+    function revealStep() {
+      const target = document.getElementById(location.hash.slice(1));
+      if (!target || !target.closest('#timeline')) return;
+      if (target.closest('[hidden]')) {
+        search.value = '';
+        kind.value = 'all';
+        filter();
+      }
+      let parent = target.parentElement;
+      while (parent) {
+        if (parent.tagName === 'DETAILS') parent.open = true;
+        parent = parent.parentElement;
+      }
+      const detail = target.querySelector('.tool-details');
+      if (detail) detail.open = true;
+      target.scrollIntoView({block:'start'});
+      updatePosition();
+    }
+
+    navToggle.addEventListener('click', () => drawer.showModal());
+    drawer.querySelector('.close-nav').addEventListener('click', () => drawer.close());
+    drawer.addEventListener('click', event => {
+      if (event.target === drawer || event.target.closest('a')) drawer.close();
+    });
+    for (const link of navLinks) {
+      link.addEventListener('click', () => {
+        if (location.hash === link.hash) requestAnimationFrame(revealStep);
+      });
+    }
+    window.addEventListener('hashchange', revealStep);
+    window.addEventListener('pageshow', () => { if (location.hash) requestAnimationFrame(revealStep); });
+    let scrollPending = false;
+    window.addEventListener('scroll', () => {
+      if (scrollPending) return;
+      scrollPending = true;
+      requestAnimationFrame(() => { updatePosition(); scrollPending = false; });
+    }, {passive:true});
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 850 && drawer.open) drawer.close();
+      updatePosition();
+    });
+    for (const control of [search, kind, collapse, navToggle]) control.disabled = false;
+    filter();
+    revealStep();
+  </script>
+</body>
+</html>

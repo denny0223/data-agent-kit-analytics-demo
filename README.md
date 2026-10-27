@@ -1,6 +1,6 @@
 # Data Agent Kit Analytics Demo
 
-**[開啟互動式儀表板](https://denny.one/data-agent-kit-analytics-demo/)**
+**[開啟互動式儀表板](https://denny.one/data-agent-kit-analytics-demo/)** · **[閱讀對話與工具紀錄](https://denny.one/data-agent-kit-analytics-demo/transcript/)**
 
 2026 年 10 月 27 日 [GDG Cloud Taipei / DevFest 暖身場：Google Cloud 與 AI 技術應用小聚](https://gdg.community.dev/events/details/google-gdg-cloud-taipei-presents-gdg-cloud-taipei-devfest-nuan-shen-chang-google-cloud-yu-ai-ji-shu-ying-yong-xiao-ju/)講題「使用 Data Agent Kit 與 Antigravity IDE 進行資料分析」的實作與展示程式碼。
 
@@ -25,6 +25,26 @@ python -m http.server 8000
 
 開啟 <http://localhost:8000/>。版面使用 Google 提供的 Tailwind CSS 瀏覽器腳本，需要網路載入樣式；「下載 HTML」會保存頁面，仍保留此樣式依賴。
 
+## 對話與工具紀錄
+
+[線上閱讀完整紀錄](https://denny.one/data-agent-kit-analytics-demo/transcript/) · [下載公開版 JSONL](transcript/session.jsonl)
+
+模型資訊（講者提供）：**Gemini 3.8 Flash Medium**。
+
+紀錄取自原始 session 的最新 `transcript_full.jsonl`，包含最後的互動式儀表板產出。網頁依時間順序渲染使用者與 Agent 的 Markdown 原文。連續工具呼叫合併收合，展開後可逐筆查看參數與結果；桌面側欄與手機懸浮目錄可直接跳到原始問題，並提供全文搜尋、類型篩選、步驟連結與 JSON／程式碼複製。
+
+工具名稱、參數、SQL、命令列、回傳結果、錯誤、時間與其他中繼資料均予以保留。公開處理僅省略內部推理與系統訊息，並以固定占位文字置換本機家目錄、Google Cloud 專案 ID 與編號；沒有加入分析摘要或修改原對話的結論。
+
+講者可在 Python 3.10 以上的虛擬環境中，從原始 session 重新產生公開檔案：
+
+```bash
+python -m pip install -r scripts/requirements.txt
+python scripts/export_session.py "$HOME/.gemini/antigravity/brain/f65ce8cb-13d1-4499-a7dd-fd83a9b78d67/.system_generated/logs/transcript_full.jsonl"
+python -m unittest discover -s scripts -p 'test_*.py'
+```
+
+`scripts/transcript-template.html` 是檢視頁模板；`transcript/index.html` 與 `transcript/session.jsonl` 是匯出結果。Markdown 在匯出時以 `markdown-it-py` 轉換，採用[停用原始 HTML 的安全設定](https://markdown-it-py.readthedocs.io/en/latest/security.html)，工具輸出保持文字。檢視頁不需載入外部 JavaScript 套件，也不會執行紀錄中的 HTML 或命令。
+
 ## 執行 dbt
 
 先依官方 lab 建立 Google Cloud 資源，並完成 DAK 與應用程式預設憑證（ADC）設定。這個 repo 不包含雲端資源佈建腳本。
@@ -48,4 +68,4 @@ dbt build --project-dir dbt --profiles-dir dbt
 
 `gh-pages` 同時保存原始碼與網站檔案，GitHub Pages 從分支根目錄發布。
 
-直接修改 `index.html` 並推送 `gh-pages`，即可更新線上儀表板。
+儀表板直接修改 `index.html`；對話紀錄版面修改 `scripts/transcript-template.html`，再執行上方匯出命令更新 `transcript/`。提交並推送 `gh-pages` 後，GitHub Pages 會發布更新。
