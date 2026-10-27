@@ -106,7 +106,7 @@ class ExportTests(unittest.TestCase):
         page, stats = render(records, "abc", template)
         parser = Elements()
         parser.feed(page)
-        self.assertEqual(parser.tags.count("script"), 1)
+        self.assertEqual(parser.tags.count("script"), 2)
         self.assertNotIn("img", parser.tags)
         self.assertTrue({"step-0", "step-1", "step-2", "step-3"}.issubset(parser.ids))
         self.assertEqual(len(parser.ids), len(set(parser.ids)))

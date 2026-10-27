@@ -4,6 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cymbal Pets 營運分析互動式儀表板</title>
+  <script>
+    if (window.location.hostname === 'denny.one') {
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { window.dataLayer.push(arguments); };
+      window.gtag('js', new Date());
+      window.gtag('config', 'G-SJL6EQRW3V');
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = 'https://www.googletagmanager.com/gtag/js?id=G-SJL6EQRW3V';
+      document.head.appendChild(script);
+    }
+  </script>
   <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
   <style>
     :root {
@@ -773,7 +785,9 @@ ORDER BY order_month, order_type;</code></pre>
 
     // 下載 HTML
     function exportOfflineHTML() {
-      const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      const html = document.documentElement.cloneNode(true);
+      html.querySelectorAll('script[src^="https://www.googletagmanager.com/"]').forEach(script => script.remove());
+      const htmlContent = '<!DOCTYPE html>\n' + html.outerHTML;
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

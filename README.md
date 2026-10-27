@@ -43,7 +43,7 @@ python scripts/export_session.py "$HOME/.gemini/antigravity/brain/f65ce8cb-13d1-
 python -m unittest discover -s scripts -p 'test_*.py'
 ```
 
-`scripts/transcript-template.html` 是檢視頁模板；`transcript/index.html` 與 `transcript/session.jsonl` 是匯出結果。Markdown 在匯出時以 `markdown-it-py` 轉換，採用[停用原始 HTML 的安全設定](https://markdown-it-py.readthedocs.io/en/latest/security.html)，工具輸出保持文字。檢視頁不需載入外部 JavaScript 套件，也不會執行紀錄中的 HTML 或命令。
+`scripts/transcript-template.html` 是檢視頁模板；`transcript/index.html` 與 `transcript/session.jsonl` 是匯出結果。Markdown 在匯出時以 `markdown-it-py` 轉換，採用[停用原始 HTML 的安全設定](https://markdown-it-py.readthedocs.io/en/latest/security.html)，工具輸出保持文字。檢視頁不會執行紀錄中的 HTML 或命令。
 
 ## 執行 dbt
 
@@ -69,3 +69,5 @@ dbt build --project-dir dbt --profiles-dir dbt
 `gh-pages` 同時保存原始碼與網站檔案，GitHub Pages 從分支根目錄發布。
 
 儀表板直接修改 `index.html`；對話紀錄版面修改 `scripts/transcript-template.html`，再執行上方匯出命令更新 `transcript/`。提交並推送 `gh-pages` 後，GitHub Pages 會發布更新。
+
+GA4 僅在 `denny.one` 啟用；本機預覽與離線下載不會載入追蹤程式。
